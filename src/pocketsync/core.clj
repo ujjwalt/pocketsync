@@ -10,7 +10,6 @@
   [& body]
   `(car/wcar redis-conn ~@body))
 
-(def since (wcar* (car/get "since")))
 (def retrieve-url "https://getpocket.com/v3/get")
 (def consumer-key (env :consumer-key))
 (def ujjwal-token (env :ujjwal-token))
@@ -24,7 +23,7 @@
                           {:form-params
                            {:consumer_key consumer-key
                             :access_token token
-                            :since since
+                            :detailType "complete"
                             :tag tag}})
              :body
              json/read-str
@@ -33,15 +32,14 @@
 
 (def add-url "https://getpocket.com/v3/add")
 
-(defn add-items
-  [token items]
-  (-> #(client/post add-url
-                   {:form-params
-                    {:consumer_key consumer-key
-                     :access_token token
-                     :url %
-                     :tags [tag]}})
-      (map items)))
+(defn add-item
+  [token item]
+  (client/post add-url
+               {:form-params
+                {:consumer_key consumer-key
+                 :access_token token
+                 :url item
+                 :tags [tag]}}))
 
 (defn set-interval [callback ms] 
   (future (while true (do (Thread/sleep ms) (callback)))))
@@ -52,12 +50,11 @@
         ronak (items ronak-token)
         for-ujjwal (clojure.set/difference ronak ujjwal)
         for-ronak (clojure.set/difference ujjwal ronak)]
-    (add-items ujjwal-token for-ujjwal)
-    (add-items ronak-token for-ronak)
-    (wcar* (car/set "since" (quot (System/currentTimeMillis) 1000)))))
+    (dorun (map #(add-item ujjwal-token %) for-ujjwal))
+    (dorun (map #(add-item ronak-token %) for-ronak))))
 
 (defn -main
   [& args]
   (do
     (pocketsync)
-    (set-interval pocketsync 3600000))) ; Sync every 1 hour
+    (set-interval pocketsync (* 1000 60 15)))) ; Sync every 15 minutes
