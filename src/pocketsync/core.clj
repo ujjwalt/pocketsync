@@ -1,9 +1,13 @@
 (ns pocketsync.core
   (:gen-class)
-  (:require [environ.core :refer [env]])
-  (:require [clj-http.client :as client])
-  (:require [taoensso.carmine :as car :refer [wcar]])
-  (:require [clojure.data.json :as json]))
+  (:require [environ.core :refer [env]]
+            [clj-http.client :as client]
+            [taoensso.carmine :as car :refer [wcar]]
+            [clojure.data.json :as json]
+            [compojure.core :refer [defroutes GET]]
+            [compojure.handler :refer [site]]
+            [compojure.route :as route]
+            [ring.adapter.hetrry :as jetty])
 
 (def redis-conn {:pool nil :spec {:uri (env :rediscloud-url)}})
 (defmacro wcar*
@@ -53,8 +57,16 @@
     (dorun (map #(add-item ujjwal-token %) for-ujjwal))
     (dorun (map #(add-item ronak-token %) for-ronak))))
 
+(defroutes app
+  (GET "*" []
+       {:status 200
+        :headers {"CONTENT-TYPE" "text/plain"}
+        :body "Leaves the friends alone to their pocketsyncing"}))
+
 (defn -main
   [& args]
   (do
     (pocketsync)
-    (set-interval pocketsync (* 1000 60 15)))) ; Sync every 15 minutes
+    (set-interval pocketsync (* 1000 60 15))
+    (let [port (Integer. (or port (env :port) 5000))]
+      (jetty/run-jetty (site #'app) {:port port :join? false})))) ; Sync every 15 minutes
